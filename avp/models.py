@@ -102,3 +102,27 @@ class VerifyResponse:
     permissions: list
     jwt_token: Optional[str] = None
     error: Optional[str] = None
+
+# ─── FastAPI request/response schemas ───
+
+@dataclass
+class ChallengeRequest:
+    wallet_address: str
+    chain: Chain
+
+@dataclass 
+class VerifyRequest:
+    challenge_id: str
+    wallet_address: str
+    chain: Chain
+    signature: str
+    operator_id: str = None
+    device_fingerprint: str = None
+
+@dataclass
+class TokenValidationResponse:
+    valid: bool
+    wallet_address: str = None
+    trust_tier: str = None
+    permissions: list = None
+    error: str = None
