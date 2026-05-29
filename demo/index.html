@@ -1,0 +1,816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AVP — Agent Verification Protocol</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080b0f;
+    --surface: #0d1117;
+    --border: #1e2633;
+    --border-bright: #2a3548;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --accent: #00ff88;
+    --accent-dim: rgba(0,255,136,0.1);
+    --accent-glow: rgba(0,255,136,0.25);
+    --warn: #f59e0b;
+    --error: #ef4444;
+    --sovereign: #a78bfa;
+    --verified: #00ff88;
+    --basic: #f59e0b;
+    --untrusted: #ef4444;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,255,136,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,255,136,0.03) 1px, transparent 1px);
+    background-size: 48px 48px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Glow orb */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -200px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, rgba(0,255,136,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Header ── */
+  header {
+    position: relative;
+    z-index: 1;
+    padding: 48px 24px 32px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo-badge {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 4px;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: 1px solid rgba(0,255,136,0.3);
+    padding: 4px 14px;
+    border-radius: 2px;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+  }
+
+  h1 {
+    font-size: clamp(28px, 5vw, 48px);
+    font-weight: 800;
+    letter-spacing: -1px;
+    line-height: 1.1;
+    margin-bottom: 12px;
+  }
+
+  h1 span { color: var(--accent); }
+
+  .subtitle {
+    color: var(--muted);
+    font-size: 15px;
+    max-width: 480px;
+    margin: 0 auto 24px;
+    line-height: 1.6;
+    font-weight: 400;
+  }
+
+  .api-url-bar {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border-bright);
+    border-radius: 4px;
+    padding: 8px 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .api-url-bar input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 12px;
+    width: 280px;
+  }
+
+  .api-url-bar label { color: var(--muted); font-size: 10px; letter-spacing: 1px; }
+
+  /* ── Layer diagram ── */
+  .layers {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    max-width: 520px;
+    margin: 32px auto;
+    padding: 0 24px;
+  }
+
+  .layer {
+    padding: 10px 16px;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    font-family: var(--mono);
+    font-size: 11px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.2s, border-color 0.2s;
+  }
+
+  .layer:first-child { border-radius: 4px 4px 0 0; }
+  .layer:last-child  { border-bottom: 1px solid var(--border); border-radius: 0 0 4px 4px; }
+
+  .layer.active {
+    background: var(--accent-dim);
+    border-color: rgba(0,255,136,0.4) !important;
+    border-bottom-color: rgba(0,255,136,0.4) !important;
+  }
+
+  .layer-num { color: var(--muted); }
+  .layer-name { color: var(--text); font-weight: 700; }
+  .layer-detail { color: var(--muted); font-size: 10px; }
+
+  /* ── Main layout ── */
+  main {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  /* ── Step cards ── */
+  .step {
+    border: 1px solid var(--border);
+    border-top: none;
+    background: var(--surface);
+  }
+
+  .step:first-child { border-top: 1px solid var(--border); border-radius: 4px 4px 0 0; }
+  .step:last-child  { border-radius: 0 0 4px 4px; }
+
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .step-num {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 12px;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .step-title { font-weight: 700; font-size: 15px; }
+  .step-method {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--accent);
+    background: var(--accent-dim);
+    border: 1px solid rgba(0,255,136,0.2);
+    padding: 3px 8px;
+    border-radius: 2px;
+  }
+
+  .step-body { padding: 24px; }
+
+  /* ── Form controls ── */
+  .field { margin-bottom: 16px; }
+
+  label {
+    display: block;
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+
+  input, select, textarea {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border-bright);
+    border-radius: 3px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  input:focus, select:focus, textarea:focus {
+    border-color: rgba(0,255,136,0.5);
+    box-shadow: 0 0 0 2px var(--accent-glow);
+  }
+
+  select option { background: var(--bg); }
+  textarea { resize: vertical; min-height: 80px; }
+
+  /* ── Buttons ── */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: 3px;
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    cursor: pointer;
+    border: none;
+    transition: all 0.15s;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+  }
+
+  .btn-primary:hover { background: #00e87a; transform: translateY(-1px); }
+  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  .btn-ghost {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border-bright);
+  }
+
+  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Response box ── */
+  .response-box {
+    margin-top: 20px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    display: none;
+  }
+
+  .response-box.show { display: block; animation: fadeIn 0.3s ease; }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .response-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 14px;
+    background: #0a0e14;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  .status-pill {
+    padding: 2px 8px;
+    border-radius: 2px;
+    font-size: 10px;
+    font-family: var(--mono);
+  }
+
+  .status-ok  { background: rgba(0,255,136,0.15); color: var(--accent); }
+  .status-err { background: rgba(239,68,68,0.15); color: var(--error); }
+
+  .response-body {
+    padding: 16px;
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.7;
+    color: #94a3b8;
+    white-space: pre-wrap;
+    word-break: break-all;
+    max-height: 300px;
+    overflow-y: auto;
+  }
+
+  .json-key   { color: #7dd3fc; }
+  .json-str   { color: #86efac; }
+  .json-num   { color: #fbbf24; }
+  .json-bool  { color: #f472b6; }
+
+  /* ── Trust score display ── */
+  .trust-display {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 16px;
+  }
+
+  .trust-card {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 16px;
+    text-align: center;
+  }
+
+  .trust-score-num {
+    font-family: var(--mono);
+    font-size: 36px;
+    font-weight: 700;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+
+  .trust-tier-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  .tier-sovereign { color: var(--sovereign); }
+  .tier-verified  { color: var(--verified);  }
+  .tier-basic     { color: var(--basic);     }
+  .tier-untrusted { color: var(--untrusted); }
+
+  .permissions-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-top: 12px;
+  }
+
+  .perm-tag {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 3px 8px;
+    border-radius: 2px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    border: 1px solid rgba(0,255,136,0.2);
+  }
+
+  /* ── Divider ── */
+  .or-divider {
+    text-align: center;
+    padding: 16px 0 0;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 2px;
+  }
+
+  /* ── Spinner ── */
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid rgba(0,0,0,0.3);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: none;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Challenge message box ── */
+  .challenge-msg {
+    background: var(--bg);
+    border: 1px solid var(--border-bright);
+    border-radius: 3px;
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    line-height: 1.8;
+    margin-top: 8px;
+    display: none;
+    word-break: break-all;
+  }
+
+  /* ── Footer ── */
+  footer {
+    position: relative;
+    z-index: 1;
+    text-align: center;
+    padding: 24px;
+    border-top: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  footer a { color: var(--accent); text-decoration: none; }
+
+  /* ── Info note ── */
+  .info-note {
+    background: rgba(245,158,11,0.08);
+    border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 3px;
+    padding: 10px 14px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--warn);
+    margin-bottom: 16px;
+    line-height: 1.6;
+  }
+
+  .row { display: flex; gap: 12px; }
+  .row .field { flex: 1; }
+
+  @media (max-width: 600px) {
+    .trust-display { grid-template-columns: 1fr; }
+    .row { flex-direction: column; }
+    .api-url-bar input { width: 180px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-badge">AVP · Agent Verification Protocol</div>
+  <h1>Multi-chain wallet<br>verification <span>explorer</span></h1>
+  <p class="subtitle">Test the full 4-layer verification flow — challenge, sign, verify, and validate tokens — live against any AVP API instance.</p>
+  <div class="api-url-bar">
+    <label>API</label>
+    <input type="text" id="apiBase" value="https://avp-protocol.onrender.com" placeholder="https://your-avp-instance.railway.app">
+  </div>
+</header>
+
+<!-- Layer status -->
+<div class="layers" id="layerDiagram">
+  <div class="layer" id="l4">
+    <span class="layer-num">L4</span>
+    <span class="layer-name">Sybil Shield</span>
+    <span class="layer-detail">ZK Nullifiers · Graph Detection</span>
+  </div>
+  <div class="layer" id="l3">
+    <span class="layer-num">L3</span>
+    <span class="layer-name">Adaptive Security</span>
+    <span class="layer-detail">Rate Limiting · Staking/Slash</span>
+  </div>
+  <div class="layer" id="l2">
+    <span class="layer-num">L2</span>
+    <span class="layer-name">MFA Trust Score</span>
+    <span class="layer-detail">Operator · Device · History</span>
+  </div>
+  <div class="layer" id="l1">
+    <span class="layer-num">L1</span>
+    <span class="layer-name">Challenge & Proof</span>
+    <span class="layer-detail">EVM ECDSA · Solana Ed25519 · JWT</span>
+  </div>
+</div>
+
+<main>
+
+  <!-- Step 1 — Challenge -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">1</div>
+      <div class="step-title">Request Challenge</div>
+      <div class="step-method">POST /challenge</div>
+    </div>
+    <div class="step-body">
+      <div class="row">
+        <div class="field">
+          <label>Wallet Address</label>
+          <input type="text" id="walletAddress" placeholder="0xYourWalletAddress or Solana pubkey" value="0xDemoWallet0000000000000000000000000001">
+        </div>
+        <div class="field" style="max-width:140px">
+          <label>Chain</label>
+          <select id="chain">
+            <option value="ethereum">Ethereum</option>
+            <option value="polygon">Polygon</option>
+            <option value="bsc">BSC</option>
+            <option value="solana">Solana</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="challengeBtn" onclick="requestChallenge()">
+        <span class="spinner" id="challengeSpinner"></span>
+        Request Challenge
+      </button>
+
+      <div class="response-box" id="challengeResponse">
+        <div class="response-header">
+          <span>RESPONSE</span>
+          <span class="status-pill status-ok" id="challengeStatus">200 OK</span>
+        </div>
+        <div class="response-body" id="challengeBody"></div>
+      </div>
+
+      <div id="challengeMsgBox" style="margin-top:16px; display:none">
+        <label>Message to sign</label>
+        <div class="challenge-msg" id="challengeMsg" style="display:block"></div>
+        <p class="or-divider">↓ COPY THIS · SIGN WITH YOUR WALLET · PASTE BELOW</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2 — Verify -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">2</div>
+      <div class="step-title">Submit Signature & Verify</div>
+      <div class="step-method">POST /verify</div>
+    </div>
+    <div class="step-body">
+      <div class="info-note">
+        ⚠ In production, sign the challenge message with your wallet (MetaMask, Phantom, etc). For demo testing, use <strong>TEST_yoursignature</strong> — the server accepts TEST_ prefixed signatures in dev mode.
+      </div>
+
+      <div class="field">
+        <label>Signature</label>
+        <input type="text" id="signature" placeholder="TEST_demo_signature  (or real 0x... signature)">
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <label>Operator ID (optional)</label>
+          <input type="text" id="operatorId" placeholder="my-operator">
+        </div>
+        <div class="field">
+          <label>Device Fingerprint (optional)</label>
+          <input type="text" id="deviceFp" placeholder="browser-fp-hash">
+        </div>
+      </div>
+
+      <button class="btn btn-primary" id="verifyBtn" onclick="submitVerify()">
+        <span class="spinner" id="verifySpinner"></span>
+        Verify Wallet
+      </button>
+
+      <div class="response-box" id="verifyResponse">
+        <div class="response-header">
+          <span>RESPONSE</span>
+          <span class="status-pill status-ok" id="verifyStatus">200 OK</span>
+        </div>
+        <div class="response-body" id="verifyBody"></div>
+      </div>
+
+      <div id="trustDisplay" style="display:none">
+        <div class="trust-display">
+          <div class="trust-card">
+            <div class="trust-score-num" id="trustScoreNum">—</div>
+            <div class="trust-tier-label" id="trustTierLabel">—</div>
+            <div style="font-size:10px; color:var(--muted); margin-top:4px; font-family:var(--mono)">TRUST SCORE / TIER</div>
+          </div>
+          <div class="trust-card" style="text-align:left">
+            <div style="font-family:var(--mono); font-size:10px; color:var(--muted); letter-spacing:2px; margin-bottom:10px">PERMISSIONS</div>
+            <div class="permissions-list" id="permsList" style="padding:0; background:none; border:none; margin:0; gap:6px; display:flex; flex-wrap:wrap"></div>
+          </div>
+        </div>
+        <div style="margin-top:12px">
+          <label>JWT Token (auto-filled below)</label>
+          <textarea id="jwtToken" rows="3" readonly style="color:var(--accent); font-size:10px"></textarea>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3 — Validate -->
+  <div class="step">
+    <div class="step-header">
+      <div class="step-num">3</div>
+      <div class="step-title">Validate Token</div>
+      <div class="step-method">GET /validate</div>
+    </div>
+    <div class="step-body">
+      <div class="field">
+        <label>JWT Token</label>
+        <textarea id="validateToken" rows="3" placeholder="Paste your JWT token here (auto-filled after Step 2)"></textarea>
+      </div>
+      <button class="btn btn-primary" onclick="validateToken()">
+        Validate Token
+      </button>
+      <button class="btn btn-ghost" style="margin-left:8px" onclick="document.getElementById('validateToken').value=''">
+        Clear
+      </button>
+
+      <div class="response-box" id="validateResponse">
+        <div class="response-header">
+          <span>RESPONSE</span>
+          <span class="status-pill" id="validateStatus">—</span>
+        </div>
+        <div class="response-body" id="validateBody"></div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <a href="https://github.com/ABICITYE/avp-protocol" target="_blank">github.com/ABICITYE/avp-protocol</a>
+  &nbsp;·&nbsp; MIT License &nbsp;·&nbsp; Built by ABICITYE
+</footer>
+
+<script>
+// ── State ──
+let state = { challengeId: null, walletAddress: null, chain: null };
+
+// ── Helpers ──
+function api() { return document.getElementById('apiBase').value.replace(/\/$/, ''); }
+
+function setLayer(id) {
+  ['l1','l2','l3','l4'].forEach(l => document.getElementById(l).classList.remove('active'));
+  if (id) document.getElementById(id).classList.add('active');
+}
+
+function spinner(id, show) {
+  const el = document.getElementById(id);
+  if (el) el.style.display = show ? 'inline-block' : 'none';
+}
+
+function showResponse(boxId, statusId, statusText, ok, data) {
+  const box = document.getElementById(boxId);
+  const status = document.getElementById(statusId);
+  const body = document.getElementById(boxId.replace('Response', 'Body'));
+  box.classList.add('show');
+  status.textContent = statusText;
+  status.className = 'status-pill ' + (ok ? 'status-ok' : 'status-err');
+  body.innerHTML = syntaxHighlight(JSON.stringify(data, null, 2));
+}
+
+function syntaxHighlight(json) {
+  return json
+    .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, match => {
+      if (/^"/.test(match)) {
+        return /:$/.test(match)
+          ? `<span class="json-key">${match}</span>`
+          : `<span class="json-str">${match}</span>`;
+      }
+      if (/true|false/.test(match)) return `<span class="json-bool">${match}</span>`;
+      return `<span class="json-num">${match}</span>`;
+    });
+}
+
+function tierClass(tier) {
+  const map = { sovereign:'tier-sovereign', verified:'tier-verified', basic:'tier-basic', untrusted:'tier-untrusted' };
+  return map[tier] || '';
+}
+
+// ── Step 1: Request Challenge ──
+async function requestChallenge() {
+  const wallet = document.getElementById('walletAddress').value.trim();
+  const chain  = document.getElementById('chain').value;
+  if (!wallet) { alert('Enter a wallet address'); return; }
+
+  setLayer('l1');
+  spinner('challengeSpinner', true);
+  document.getElementById('challengeBtn').disabled = true;
+
+  try {
+    const res = await fetch(`${api()}/challenge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ wallet_address: wallet, chain }),
+    });
+    const data = await res.json();
+    showResponse('challengeResponse', 'challengeStatus', `${res.status} ${res.ok ? 'OK' : 'ERROR'}`, res.ok, data);
+
+    if (res.ok) {
+      state = { challengeId: data.challenge_id, walletAddress: wallet, chain };
+      document.getElementById('challengeMsgBox').style.display = 'block';
+      document.getElementById('challengeMsg').textContent = data.message;
+    }
+  } catch (e) {
+    showResponse('challengeResponse', 'challengeStatus', 'NETWORK ERROR', false,
+      { error: e.message, hint: 'Is your AVP server running? Check the API URL above.' });
+  } finally {
+    spinner('challengeSpinner', false);
+    document.getElementById('challengeBtn').disabled = false;
+  }
+}
+
+// ── Step 2: Verify ──
+async function submitVerify() {
+  if (!state.challengeId) { alert('Complete Step 1 first'); return; }
+  const sig  = document.getElementById('signature').value.trim();
+  const opId = document.getElementById('operatorId').value.trim();
+  const fp   = document.getElementById('deviceFp').value.trim();
+  if (!sig)  { alert('Enter a signature (use TEST_demo for testing)'); return; }
+
+  setLayer('l2');
+  spinner('verifySpinner', true);
+  document.getElementById('verifyBtn').disabled = true;
+
+  try {
+    const body = {
+      challenge_id: state.challengeId,
+      wallet_address: state.walletAddress,
+      chain: state.chain,
+      signature: sig,
+    };
+    if (opId) body.operator_id = opId;
+    if (fp)   body.device_fingerprint = fp;
+
+    const res = await fetch(`${api()}/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    showResponse('verifyResponse', 'verifyStatus', `${res.status} ${res.ok ? 'OK' : 'ERROR'}`, res.ok && data.success, data);
+
+    if (data.success) {
+      setLayer('l4');
+      document.getElementById('trustDisplay').style.display = 'block';
+
+      const scoreEl = document.getElementById('trustScoreNum');
+      scoreEl.textContent = data.trust_score;
+      scoreEl.className = 'trust-score-num ' + tierClass(data.trust_tier);
+
+      const tierEl = document.getElementById('trustTierLabel');
+      tierEl.textContent = data.trust_tier.toUpperCase();
+      tierEl.className = 'trust-tier-label ' + tierClass(data.trust_tier);
+
+      const permsList = document.getElementById('permsList');
+      permsList.innerHTML = data.permissions.map(p => `<span class="perm-tag">${p}</span>`).join('');
+
+      document.getElementById('jwtToken').value = data.jwt_token;
+      document.getElementById('validateToken').value = data.jwt_token;
+    }
+  } catch (e) {
+    showResponse('verifyResponse', 'verifyStatus', 'NETWORK ERROR', false,
+      { error: e.message, hint: 'Is your AVP server running?' });
+  } finally {
+    spinner('verifySpinner', false);
+    document.getElementById('verifyBtn').disabled = false;
+  }
+}
+
+// ── Step 3: Validate Token ──
+async function validateToken() {
+  const token = document.getElementById('validateToken').value.trim();
+  if (!token) { alert('Paste a JWT token'); return; }
+  setLayer('l1');
+  try {
+    const res = await fetch(`${api()}/validate?token=${encodeURIComponent(token)}`);
+    const data = await res.json();
+    const ok = data.valid === true;
+    showResponse('validateResponse', 'validateStatus', ok ? '✓ VALID' : '✗ INVALID', ok, data);
+    document.getElementById('validateStatus').className = 'status-pill ' + (ok ? 'status-ok' : 'status-err');
+  } catch (e) {
+    showResponse('validateResponse', 'validateStatus', 'NETWORK ERROR', false, { error: e.message });
+  }
+}
+
+// Auto-generate device fingerprint suggestion
+window.addEventListener('load', () => {
+  const fp = btoa(navigator.userAgent + screen.width + screen.height).slice(0, 16);
+  document.getElementById('deviceFp').placeholder = `e.g. ${fp}`;
+});
+</script>
+</body>
+</html>
