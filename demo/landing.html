@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AVP — Agent Verification Protocol</title>
+<meta name="description" content="Multi-chain wallet verification with trust scoring, Sybil resistance, and ZK nullifiers. The identity layer Web3 is missing.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,wght@0,100..900;1,100..900&family=Cabinet+Grotesk:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+<style>
+:root {
+  --ink: #0a0a0a;
+  --paper: #f5f0e8;
+  --paper2: #ede8dc;
+  --accent: #1a1a1a;
+  --green: #00c853;
+  --green-pale: #e8fff1;
+  --red: #e53935;
+  --amber: #f59e0b;
+  --mono: 'DM Mono', monospace;
+  --sans: 'Cabinet Grotesk', sans-serif;
+  --serif: 'Fraunces', serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  overflow-x: hidden;
+  cursor: none;
+}
+
+/* Custom cursor */
+.cursor {
+  width: 12px; height: 12px;
+  background: var(--ink);
+  border-radius: 50%;
+  position: fixed;
+  pointer-events: none;
+  z-index: 9999;
+  transition: transform 0.15s ease, background 0.2s;
+  transform: translate(-50%, -50%);
+}
+
+.cursor-ring {
+  width: 36px; height: 36px;
+  border: 1px solid var(--ink);
+  border-radius: 50%;
+  position: fixed;
+  pointer-events: none;
+  z-index: 9998;
+  transition: all 0.25s ease;
+  transform: translate(-50%, -50%);
+  opacity: 0.4;
+}
+
+/* Noise texture overlay */
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 100;
+  opacity: 0.6;
+}
+
+/* ── NAV ── */
+nav {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 50;
+  padding: 20px 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(10,10,10,0.08);
+  background: rgba(245,240,232,0.85);
+  backdrop-filter: blur(12px);
+}
+
+.nav-logo {
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.nav-links {
+  display: flex;
+  gap: 32px;
+  list-style: none;
+}
+
+.nav-links a {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink);
+  opacity: 0.5;
+  transition: opacity 0.2s;
+}
+
+.nav-links a:hover { opacity: 1; }
+
+.nav-cta {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--paper);
+  background: var(--ink);
+  padding: 10px 20px;
+  border-radius: 2px;
+  transition: background 0.2s;
+}
+
+.nav-cta:hover { background: #333; }
+
+/* ── HERO ── */
+.hero {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 120px 48px 80px;
+  position: relative;
+  overflow: hidden;
+}
+
+.hero-eyebrow {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: var(--green);
+  background: var(--green-pale);
+  border: 1px solid rgba(0,200,83,0.3);
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 2px;
+  margin-bottom: 40px;
+  animation: fadeUp 0.8s ease both;
+}
+
+.hero h1 {
+  font-family: var(--serif);
+  font-size: clamp(56px, 9vw, 130px);
+  font-weight: 900;
+  line-height: 0.92;
+  letter-spacing: -3px;
+  max-width: 900px;
+  animation: fadeUp 0.8s 0.1s ease both;
+}
+
+.hero h1 em {
+  font-style: italic;
+  font-weight: 300;
+  color: #555;
+}
+
+.hero-sub {
+  font-size: 18px;
+  color: #555;
+  max-width: 520px;
+  line-height: 1.7;
+  margin-top: 32px;
+  animation: fadeUp 0.8s 0.2s ease both;
+  font-weight: 400;
+}
+
+.hero-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 48px;
+  flex-wrap: wrap;
+  animation: fadeUp 0.8s 0.3s ease both;
+}
+
+.btn-primary {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--paper);
+  background: var(--ink);
+  padding: 16px 32px;
+  border-radius: 2px;
+  border: none;
+  cursor: none;
+  transition: transform 0.15s, background 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-primary:hover { background: #222; transform: translateY(-2px); }
+
+.btn-secondary {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: var(--ink);
+  background: transparent;
+  padding: 16px 32px;
+  border-radius: 2px;
+  border: 1px solid rgba(10,10,10,0.2);
+  cursor: none;
+  transition: border-color 0.2s, transform 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.btn-secondary:hover { border-color: var(--ink); transform: translateY(-2px); }
+
+/* Hero decoration */
+.hero-grid {
+  position: absolute;
+  right: -100px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 500px;
+  height: 500px;
+  opacity: 0.06;
+  animation: rotate 60s linear infinite;
+}
+
+.hero-stat-strip {
+  display: flex;
+  gap: 48px;
+  margin-top: 80px;
+  padding-top: 40px;
+  border-top: 1px solid rgba(10,10,10,0.1);
+  animation: fadeUp 0.8s 0.4s ease both;
+  flex-wrap: wrap;
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.stat-num {
+  font-family: var(--serif);
+  font-size: 40px;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.stat-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #888;
+}
+
+/* ── PROBLEM SECTION ── */
+.section {
+  padding: 120px 48px;
+  border-top: 1px solid rgba(10,10,10,0.08);
+}
+
+.section-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  color: #888;
+  margin-bottom: 48px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.section-label::after {
+  content: '';
+  display: block;
+  height: 1px;
+  width: 48px;
+  background: #ccc;
+}
+
+.problem-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: start;
+}
+
+.problem-headline {
+  font-family: var(--serif);
+  font-size: clamp(36px, 4vw, 56px);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -1px;
+}
+
+.problem-headline em {
+  font-style: italic;
+  font-weight: 300;
+  color: #888;
+}
+
+.problem-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.problem-item {
+  padding: 20px 0;
+  border-bottom: 1px solid rgba(10,10,10,0.08);
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.problem-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #fee2e2;
+  color: var(--red);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.problem-text strong {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.problem-text span {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.6;
+}
+
+/* ── ARCHITECTURE ── */
+.arch-section {
+  background: var(--ink);
+  color: var(--paper);
+  padding: 120px 48px;
+}
+
+.arch-section .section-label { color: #666; }
+.arch-section .section-label::after { background: #333; }
+
+.arch-headline {
+  font-family: var(--serif);
+  font-size: clamp(36px, 4vw, 56px);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -1px;
+  margin-bottom: 80px;
+  max-width: 600px;
+}
+
+.arch-headline em { font-style: italic; font-weight: 300; color: #666; }
+
+.layers-visual {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-width: 700px;
+}
+
+.layer-row {
+  display: grid;
+  grid-template-columns: 80px 1fr auto;
+  gap: 24px;
+  align-items: center;
+  padding: 24px 28px;
+  border: 1px solid #222;
+  border-radius: 3px;
+  background: #111;
+  transition: background 0.2s, border-color 0.2s;
+  cursor: none;
+}
+
+.layer-row:hover {
+  background: #1a1a1a;
+  border-color: #333;
+}
+
+.layer-num {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: #555;
+}
+
+.layer-name {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.layer-detail {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: #555;
+}
+
+.layer-badge {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 2px;
+  letter-spacing: 1px;
+}
+
+.badge-green { background: rgba(0,200,83,0.15); color: var(--green); }
+.badge-blue  { background: rgba(59,130,246,0.15); color: #60a5fa; }
+.badge-amber { background: rgba(245,158,11,0.15); color: var(--amber); }
+.badge-purple { background: rgba(167,139,250,0.15); color: #a78bfa; }
+
+/* ── TRUST TIERS ── */
+.tiers-section {
+  padding: 120px 48px;
+  background: var(--paper2);
+  border-top: 1px solid rgba(10,10,10,0.08);
+}
+
+.tiers-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  margin-top: 64px;
+}
+
+.tier-card {
+  padding: 32px 24px;
+  border: 1px solid rgba(10,10,10,0.1);
+  background: var(--paper);
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s;
+}
+
+.tier-card:hover { transform: translateY(-4px); }
+
+.tier-score {
+  font-family: var(--serif);
+  font-size: 52px;
+  font-weight: 900;
+  line-height: 1;
+  margin-bottom: 8px;
+}
+
+.tier-name {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  margin-bottom: 20px;
+  font-weight: 500;
+}
+
+.tier-perms {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tier-perms li {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tier-perms li::before {
+  content: '→';
+  color: #bbb;
+}
+
+.tier-sovereign .tier-score { color: #7c3aed; }
+.tier-verified  .tier-score { color: var(--green); }
+.tier-basic     .tier-score { color: var(--amber); }
+.tier-untrusted .tier-score { color: #aaa; }
+
+/* ── CODE SECTION ── */
+.code-section {
+  padding: 120px 48px;
+  border-top: 1px solid rgba(10,10,10,0.08);
+}
+
+.code-tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 0;
+  border-bottom: 1px solid rgba(10,10,10,0.1);
+}
+
+.code-tab {
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 1px;
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  cursor: none;
+  color: #888;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.code-tab.active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+.code-block {
+  background: #0d1117;
+  border-radius: 0 0 4px 4px;
+  padding: 32px;
+  display: none;
+  overflow-x: auto;
+}
+
+.code-block.active { display: block; }
+
+.code-block pre {
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.8;
+  color: #e6edf3;
+  white-space: pre;
+}
+
+.kw { color: #ff7b72; }
+.fn { color: #d2a8ff; }
+.str { color: #a5d6ff; }
+.cm { color: #8b949e; }
+.num { color: #79c0ff; }
+.cls { color: #ffa657; }
+
+/* ── INSTALL ── */
+.install-section {
+  padding: 80px 48px;
+  background: var(--ink);
+  color: var(--paper);
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 80px;
+  align-items: center;
+}
+
+.install-headline {
+  font-family: var(--serif);
+  font-size: clamp(32px, 3vw, 48px);
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -1px;
+}
+
+.install-commands {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.install-cmd {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #111;
+  border: 1px solid #222;
+  border-radius: 3px;
+  padding: 14px 18px;
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.install-cmd .pkg { color: #8b949e; font-size: 10px; letter-spacing: 2px; min-width: 28px; }
+.install-cmd .cmd { color: #e6edf3; flex: 1; }
+.install-cmd .copy-btn {
+  background: none;
+  border: none;
+  color: #555;
+  cursor: none;
+  font-size: 12px;
+  transition: color 0.2s;
+}
+.install-cmd .copy-btn:hover { color: var(--green); }
+
+/* ── LINKS SECTION ── */
+.links-section {
+  padding: 120px 48px;
+  border-top: 1px solid rgba(10,10,10,0.08);
+}
+
+.links-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 2px;
+  margin-top: 64px;
+}
+
+.link-card {
+  padding: 40px 32px;
+  border: 1px solid rgba(10,10,10,0.1);
+  text-decoration: none;
+  color: var(--ink);
+  display: block;
+  transition: background 0.2s, transform 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+
+.link-card::after {
+  content: '↗';
+  position: absolute;
+  top: 24px; right: 24px;
+  font-size: 20px;
+  opacity: 0.2;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.link-card:hover { background: var(--paper2); transform: translateY(-2px); }
+.link-card:hover::after { opacity: 1; transform: translate(2px, -2px); }
+
+.link-icon {
+  font-size: 28px;
+  margin-bottom: 20px;
+  display: block;
+}
+
+.link-title {
+  font-family: var(--serif);
+  font-size: 22px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.link-desc {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.6;
+}
+
+.link-tag {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: #aaa;
+  margin-top: 16px;
+  display: block;
+}
+
+/* ── FOOTER ── */
+footer {
+  padding: 48px;
+  border-top: 1px solid rgba(10,10,10,0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.footer-logo {
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+}
+
+.footer-links {
+  display: flex;
+  gap: 24px;
+  list-style: none;
+}
+
+.footer-links a {
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  text-decoration: none;
+  color: #888;
+  transition: color 0.2s;
+}
+
+.footer-links a:hover { color: var(--ink); }
+
+.footer-credit {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #aaa;
+  letter-spacing: 1px;
+}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes rotate {
+  from { transform: translateY(-50%) rotate(0deg); }
+  to   { transform: translateY(-50%) rotate(360deg); }
+}
+
+.reveal {
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 0.7s ease, transform 0.7s ease;
+}
+
+.reveal.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* ── RESPONSIVE ── */
+@media (max-width: 768px) {
+  nav { padding: 16px 24px; }
+  .nav-links { display: none; }
+  .hero { padding: 100px 24px 60px; }
+  .hero h1 { font-size: 52px; letter-spacing: -2px; }
+  .section, .tiers-section, .code-section, .links-section { padding: 80px 24px; }
+  .arch-section { padding: 80px 24px; }
+  .problem-grid { grid-template-columns: 1fr; }
+  .tiers-grid { grid-template-columns: 1fr 1fr; }
+  .install-section { grid-template-columns: 1fr; padding: 60px 24px; gap: 40px; }
+  .links-grid { grid-template-columns: 1fr; }
+  footer { padding: 32px 24px; }
+  .hero-stat-strip { gap: 32px; }
+}
+</style>
+</head>
+<body>
+
+<div class="cursor" id="cursor"></div>
+<div class="cursor-ring" id="cursorRing"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo">AVP Protocol</div>
+  <ul class="nav-links">
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#install">Install</a></li>
+    <li><a href="https://avp-protocol.onrender.com/docs" target="_blank">API Docs</a></li>
+  </ul>
+  <a href="https://avp-protocol.onrender.com/docs" target="_blank" class="nav-cta">Try the API →</a>
+</nav>
+
+<!-- HERO -->
+<section class="hero">
+  <svg class="hero-grid" viewBox="0 0 400 400" fill="none">
+    <circle cx="200" cy="200" r="180" stroke="#000" stroke-width="0.5"/>
+    <circle cx="200" cy="200" r="140" stroke="#000" stroke-width="0.5"/>
+    <circle cx="200" cy="200" r="100" stroke="#000" stroke-width="0.5"/>
+    <circle cx="200" cy="200" r="60" stroke="#000" stroke-width="0.5"/>
+    <line x1="20" y1="200" x2="380" y2="200" stroke="#000" stroke-width="0.5"/>
+    <line x1="200" y1="20" x2="200" y2="380" stroke="#000" stroke-width="0.5"/>
+    <line x1="72" y1="72" x2="328" y2="328" stroke="#000" stroke-width="0.5"/>
+    <line x1="328" y1="72" x2="72" y2="328" stroke="#000" stroke-width="0.5"/>
+  </svg>
+
+  <div class="hero-eyebrow">● Live on Render · PyPI · npm</div>
+
+  <h1>
+    The trust layer<br>
+    Web3 <em>is missing.</em>
+  </h1>
+
+  <p class="hero-sub">
+    AVP gives every wallet a cryptographic trust score from 0–100.
+    Multi-chain. Sybil-resistant. Zero infrastructure required.
+  </p>
+
+  <div class="hero-actions">
+    <a href="https://avp-protocol.onrender.com/docs" target="_blank" class="btn-primary">
+      Explore the API →
+    </a>
+    <a href="https://github.com/ABICITYE/avp-protocol" target="_blank" class="btn-secondary">
+      View on GitHub
+    </a>
+  </div>
+
+  <div class="hero-stat-strip">
+    <div class="stat">
+      <span class="stat-num">4</span>
+      <span class="stat-label">Security layers</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">4</span>
+      <span class="stat-label">Chains supported</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">0</span>
+      <span class="stat-label">Dependencies</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num">2</span>
+      <span class="stat-label">SDKs published</span>
+    </div>
+  </div>
+</section>
+
+<!-- PROBLEM -->
+<section class="section" id="problem">
+  <div class="section-label">The problem</div>
+  <div class="problem-grid">
+    <div>
+      <h2 class="problem-headline reveal">
+        Wallet auth today is<br>
+        <em>binary and blind.</em>
+      </h2>
+    </div>
+    <ul class="problem-list reveal">
+      <li class="problem-item">
+        <div class="problem-icon">✗</div>
+        <div class="problem-text">
+          <strong>No trust scoring</strong>
+          <span>Every wallet is treated equally. Whale or bot — same access.</span>
+        </div>
+      </li>
+      <li class="problem-item">
+        <div class="problem-icon">✗</div>
+        <div class="problem-text">
+          <strong>Sybil farming</strong>
+          <span>One operator registers 10,000 wallets. Airdrops get drained. DAOs get hijacked.</span>
+        </div>
+      </li>
+      <li class="problem-item">
+        <div class="problem-icon">✗</div>
+        <div class="problem-text">
+          <strong>No cross-chain standard</strong>
+          <span>Ethereum auth doesn't work for Solana. Every chain is a different integration.</span>
+        </div>
+      </li>
+      <li class="problem-item">
+        <div class="problem-icon">✗</div>
+        <div class="problem-text">
+          <strong>Replay attacks</strong>
+          <span>Old signatures reused. No expiry. No nullifiers.</span>
+        </div>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section class="arch-section" id="architecture">
+  <div class="section-label">How it works</div>
+  <h2 class="arch-headline reveal">
+    Four layers.<br>
+    <em>One score.</em>
+  </h2>
+
+  <div class="layers-visual">
+    <div class="layer-row reveal">
+      <span class="layer-num">Layer 4</span>
+      <div>
+        <div class="layer-name">Sybil Shield</div>
+        <div class="layer-detail">ZK Nullifiers · Graph Community Detection</div>
+      </div>
+      <span class="layer-badge badge-purple">Security</span>
+    </div>
+    <div class="layer-row reveal">
+      <span class="layer-num">Layer 3</span>
+      <div>
+        <div class="layer-name">Adaptive Security</div>
+        <div class="layer-detail">Rate Limiting · Operator Staking/Slash</div>
+      </div>
+      <span class="layer-badge badge-amber">Protection</span>
+    </div>
+    <div class="layer-row reveal">
+      <span class="layer-num">Layer 2</span>
+      <div>
+        <div class="layer-name">MFA Trust Score</div>
+        <div class="layer-detail">Signature(40) · Operator(30) · Device(20) · History(10)</div>
+      </div>
+      <span class="layer-badge badge-blue">Scoring</span>
+    </div>
+    <div class="layer-row reveal">
+      <span class="layer-num">Layer 1</span>
+      <div>
+        <div class="layer-name">Challenge & Proof</div>
+        <div class="layer-detail">EVM ECDSA · Solana Ed25519 · JWT</div>
+      </div>
+      <span class="layer-badge badge-green">Core</span>
+    </div>
+  </div>
+</section>
+
+<!-- TRUST TIERS -->
+<section class="tiers-section" id="tiers">
+  <div class="section-label">Trust tiers</div>
+  <h2 class="problem-headline reveal" style="margin-bottom: 0">
+    Not just verified.<br>
+    <em>How much?</em>
+  </h2>
+
+  <div class="tiers-grid">
+    <div class="tier-card tier-sovereign reveal">
+      <div class="tier-score">80+</div>
+      <div class="tier-name">Sovereign</div>
+      <ul class="tier-perms">
+        <li>governance_vote</li>
+        <li>admin_actions</li>
+        <li>transfer_high_value</li>
+        <li>write</li>
+        <li>read</li>
+      </ul>
+    </div>
+    <div class="tier-card tier-verified reveal">
+      <div class="tier-score">60+</div>
+      <div class="tier-name">Verified</div>
+      <ul class="tier-perms">
+        <li>governance_vote</li>
+        <li>transfer_standard</li>
+        <li>write</li>
+        <li>read</li>
+      </ul>
+    </div>
+    <div class="tier-card tier-basic reveal">
+      <div class="tier-score">40+</div>
+      <div class="tier-name">Basic</div>
+      <ul class="tier-perms">
+        <li>transfer_limited</li>
+        <li>read</li>
+      </ul>
+    </div>
+    <div class="tier-card tier-untrusted reveal">
+      <div class="tier-score">0+</div>
+      <div class="tier-name">Untrusted</div>
+      <ul class="tier-perms">
+        <li>read only</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- CODE -->
+<section class="code-section" id="install">
+  <div class="section-label">Quick start</div>
+  <h2 class="problem-headline reveal" style="margin-bottom: 48px">
+    Integrate in<br>
+    <em>3 lines.</em>
+  </h2>
+
+  <div class="reveal">
+    <div class="code-tabs">
+      <button class="code-tab active" onclick="switchTab('python', this)">Python</button>
+      <button class="code-tab" onclick="switchTab('js', this)">JavaScript</button>
+      <button class="code-tab" onclick="switchTab('curl', this)">cURL</button>
+    </div>
+
+    <div class="code-block active" id="tab-python">
+      <pre><span class="cm"># pip install avp-wallet-sdk</span>
+<span class="kw">from</span> avp_wallet_sdk <span class="kw">import</span> AVPClient
+
+client = <span class="cls">AVPClient</span>(<span class="str">"https://avp-protocol.onrender.com"</span>)
+
+<span class="cm"># Step 1 — request a challenge</span>
+challenge = client.<span class="fn">challenge</span>(<span class="str">"0xYourWallet"</span>, <span class="str">"ethereum"</span>)
+
+<span class="cm"># Step 2 — verify the signature</span>
+result = client.<span class="fn">verify</span>(challenge, signature=<span class="str">"0x..."</span>)
+
+<span class="fn">print</span>(result.trust_score)   <span class="cm"># 75</span>
+<span class="fn">print</span>(result.trust_tier)    <span class="cm"># "verified"</span>
+<span class="fn">print</span>(result.permissions)   <span class="cm"># ["read", "write", "governance_vote"]</span></pre>
+    </div>
+
+    <div class="code-block" id="tab-js">
+      <pre><span class="cm">// npm install avp-wallet-sdk</span>
+<span class="kw">import</span> { AVPClient } <span class="kw">from</span> <span class="str">'avp-wallet-sdk'</span>
+
+<span class="kw">const</span> client = <span class="kw">new</span> <span class="cls">AVPClient</span>(<span class="str">'https://avp-protocol.onrender.com'</span>)
+
+<span class="cm">// Step 1 — request a challenge</span>
+<span class="kw">const</span> challenge = <span class="kw">await</span> client.<span class="fn">challenge</span>(<span class="str">'0xYourWallet'</span>, <span class="str">'ethereum'</span>)
+
+<span class="cm">// Step 2 — verify the signature</span>
+<span class="kw">const</span> result = <span class="kw">await</span> client.<span class="fn">verify</span>(challenge, { signature: <span class="str">'0x...'</span> })
+
+console.<span class="fn">log</span>(result.trustScore)    <span class="cm">// 75</span>
+console.<span class="fn">log</span>(result.trustTier)     <span class="cm">// "verified"</span>
+console.<span class="fn">log</span>(result.permissions)   <span class="cm">// ["read", "write", "governance_vote"]</span></pre>
+    </div>
+
+    <div class="code-block" id="tab-curl">
+      <pre><span class="cm"># Step 1 — get a challenge</span>
+curl -X POST https://avp-protocol.onrender.com/challenge \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{"wallet_address": "0xYourWallet", "chain": "ethereum"}'</span>
+
+<span class="cm"># Step 2 — verify signature</span>
+curl -X POST https://avp-protocol.onrender.com/verify \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{"challenge_id": "...", "wallet_address": "0xYourWallet",
+     "chain": "ethereum", "signature": "0x..."}'</span>
+
+<span class="cm"># Response</span>
+{
+  <span class="str">"success"</span>: <span class="kw">true</span>,
+  <span class="str">"trust_score"</span>: <span class="num">75</span>,
+  <span class="str">"trust_tier"</span>: <span class="str">"verified"</span>,
+  <span class="str">"jwt_token"</span>: <span class="str">"eyJ..."</span>
+}</pre>
+    </div>
+  </div>
+</section>
+
+<!-- INSTALL COMMANDS -->
+<div class="install-section">
+  <div>
+    <h2 class="install-headline reveal">
+      Available on<br>PyPI and npm.
+    </h2>
+    <p style="color:#666; margin-top:16px; font-size:14px; line-height:1.7">Zero dependencies. Works in Python 3.9+, Node.js 18+, and modern browsers.</p>
+  </div>
+  <div class="install-commands reveal">
+    <div class="install-cmd">
+      <span class="pkg">pip</span>
+      <span class="cmd">pip install avp-wallet-sdk</span>
+      <button class="copy-btn" onclick="copyText('pip install avp-wallet-sdk', this)">⎘</button>
+    </div>
+    <div class="install-cmd">
+      <span class="pkg">npm</span>
+      <span class="cmd">npm install avp-wallet-sdk</span>
+      <button class="copy-btn" onclick="copyText('npm install avp-wallet-sdk', this)">⎘</button>
+    </div>
+    <div class="install-cmd">
+      <span class="pkg">api</span>
+      <span class="cmd">https://avp-protocol.onrender.com</span>
+      <button class="copy-btn" onclick="copyText('https://avp-protocol.onrender.com', this)">⎘</button>
+    </div>
+  </div>
+</div>
+
+<!-- LINKS -->
+<section class="links-section">
+  <div class="section-label">Resources</div>
+  <div class="links-grid">
+    <a href="https://avp-protocol.onrender.com/docs" target="_blank" class="link-card reveal">
+      <span class="link-icon">⚡</span>
+      <div class="link-title">Live API</div>
+      <p class="link-desc">Interactive API explorer. Test the full verification flow in your browser. No setup required.</p>
+      <span class="link-tag">avp-protocol.onrender.com</span>
+    </a>
+    <a href="https://github.com/ABICITYE/avp-protocol" target="_blank" class="link-card reveal">
+      <span class="link-icon">◈</span>
+      <div class="link-title">Source Code</div>
+      <p class="link-desc">Full source on GitHub. MIT licensed. 26 files, 4-layer engine, SQLite persistence.</p>
+      <span class="link-tag">github.com/ABICITYE</span>
+    </a>
+    <a href="https://pypi.org/project/avp-wallet-sdk/" target="_blank" class="link-card reveal">
+      <span class="link-icon">🐍</span>
+      <div class="link-title">Python & JS SDKs</div>
+      <p class="link-desc">pip install avp-wallet-sdk · npm install avp-wallet-sdk. TypeScript definitions included.</p>
+      <span class="link-tag">PyPI · npm</span>
+    </a>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="footer-logo">AVP Protocol</div>
+  <ul class="footer-links">
+    <li><a href="https://avp-protocol.onrender.com/docs" target="_blank">API Docs</a></li>
+    <li><a href="https://github.com/ABICITYE/avp-protocol" target="_blank">GitHub</a></li>
+    <li><a href="https://pypi.org/project/avp-wallet-sdk/" target="_blank">PyPI</a></li>
+    <li><a href="https://www.npmjs.com/package/avp-wallet-sdk" target="_blank">npm</a></li>
+  </ul>
+  <div class="footer-credit">Built by Oyewole Emmanuel Abiodun · MIT License</div>
+</footer>
+
+<script>
+// Custom cursor
+const cursor = document.getElementById('cursor');
+const ring = document.getElementById('cursorRing');
+let mx = 0, my = 0, rx = 0, ry = 0;
+
+document.addEventListener('mousemove', e => {
+  mx = e.clientX; my = e.clientY;
+  cursor.style.left = mx + 'px';
+  cursor.style.top = my + 'px';
+});
+
+function animateRing() {
+  rx += (mx - rx) * 0.12;
+  ry += (my - ry) * 0.12;
+  ring.style.left = rx + 'px';
+  ring.style.top = ry + 'px';
+  requestAnimationFrame(animateRing);
+}
+animateRing();
+
+document.querySelectorAll('a, button, .layer-row, .tier-card, .link-card').forEach(el => {
+  el.addEventListener('mouseenter', () => {
+    cursor.style.transform = 'translate(-50%, -50%) scale(2.5)';
+    ring.style.transform = 'translate(-50%, -50%) scale(1.5)';
+    ring.style.opacity = '0.15';
+  });
+  el.addEventListener('mouseleave', () => {
+    cursor.style.transform = 'translate(-50%, -50%) scale(1)';
+    ring.style.transform = 'translate(-50%, -50%) scale(1)';
+    ring.style.opacity = '0.4';
+  });
+});
+
+// Scroll reveal
+const observer = new IntersectionObserver(entries => {
+  entries.forEach((e, i) => {
+    if (e.isIntersecting) {
+      setTimeout(() => e.target.classList.add('visible'), i * 80);
+    }
+  });
+}, { threshold: 0.1 });
+
+document.querySelectorAll('.reveal').forEach(el => observer.observe(el));
+
+// Code tabs
+function switchTab(lang, btn) {
+  document.querySelectorAll('.code-block').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + lang).classList.add('active');
+  btn.classList.add('active');
+}
+
+// Copy to clipboard
+function copyText(text, btn) {
+  navigator.clipboard.writeText(text).then(() => {
+    const orig = btn.textContent;
+    btn.textContent = '✓';
+    btn.style.color = 'var(--green)';
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.style.color = '';
+    }, 1500);
+  });
+}
+</script>
+</body>
+</html>
